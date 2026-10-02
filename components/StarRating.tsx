@@ -12,12 +12,12 @@ interface StarRatingProps {
   className?: string;
 }
 
-const RATING_LABELS: Record<number, { text: string; color: string }> = {
-  1: { text: "1 - Poor", color: "text-slate-600 dark:text-zinc-400" },
-  2: { text: "2 - Fair", color: "text-slate-600 dark:text-zinc-400" },
-  3: { text: "3 - Average", color: "text-slate-700 dark:text-zinc-300 font-medium" },
-  4: { text: "4 - Good", color: "text-emerald-700 dark:text-emerald-400 font-medium" },
-  5: { text: "5 - Excellent", color: "text-emerald-700 dark:text-emerald-400 font-semibold" },
+const RATING_LABELS: Record<number, string> = {
+  1: "Poor",
+  2: "Fair",
+  3: "Good",
+  4: "Very Good",
+  5: "Excellent",
 };
 
 export const StarRating: React.FC<StarRatingProps> = ({
@@ -40,15 +40,14 @@ export const StarRating: React.FC<StarRatingProps> = ({
   };
 
   const handleSelect = (val: number) => {
-    if (!readOnly && onChange) {
-      onChange(val);
-    }
+    if (readOnly || !onChange) return;
+    onChange(val);
   };
 
   return (
     <div className={`flex flex-col items-center gap-1.5 ${className}`}>
       <div
-        className="flex items-center gap-1.5 sm:gap-2"
+        className="flex items-center gap-1.5"
         onMouseLeave={() => !readOnly && setHoverRating(null)}
       >
         {[1, 2, 3, 4, 5].map((starVal) => {
@@ -61,18 +60,18 @@ export const StarRating: React.FC<StarRatingProps> = ({
               disabled={readOnly}
               onClick={() => handleSelect(starVal)}
               onMouseEnter={() => !readOnly && setHoverRating(starVal)}
-              className={`p-1 transition-transform duration-100 ${
+              aria-label={`Rate ${starVal} out of 5 stars`}
+              className={`p-1 transition-transform ${
                 readOnly
                   ? "cursor-default"
-                  : "cursor-pointer hover:scale-105 active:scale-95"
-              } focus:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 rounded-md`}
-              aria-label={`${starVal} star${starVal > 1 ? "s" : ""}`}
+                  : "cursor-pointer hover:scale-110 active:scale-95 focus:outline-none"
+              }`}
             >
               <Star
-                className={`${sizeClasses[size]} transition-colors duration-150 ${
+                className={`${sizeClasses[size]} transition-colors ${
                   isFilled
-                    ? "fill-amber-400 text-amber-500"
-                    : "fill-transparent text-slate-300 dark:text-zinc-700 hover:text-slate-400"
+                    ? "fill-amber-400 text-amber-400"
+                    : "fill-transparent text-slate-300 dark:text-zinc-700"
                 }`}
               />
             </button>
@@ -81,12 +80,8 @@ export const StarRating: React.FC<StarRatingProps> = ({
       </div>
 
       {showLabel && activeRating > 0 && (
-        <span
-          className={`text-xs ${
-            RATING_LABELS[activeRating]?.color || "text-slate-600"
-          }`}
-        >
-          {RATING_LABELS[activeRating]?.text}
+        <span className="text-xs font-medium text-slate-600 dark:text-zinc-400">
+          {RATING_LABELS[activeRating] || `${activeRating} Stars`}
         </span>
       )}
     </div>

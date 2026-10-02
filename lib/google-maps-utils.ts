@@ -1,44 +1,65 @@
 /**
  * Google Maps Integration & Hand-Off Utilities
- *
- * Technical Reality:
- * Due to Google security constraints (CORS sandbox, cross-origin iframe security,
- * and native app sandboxing), external third-party web apps cannot programmatically
- * pre-fill the text input inside Google's native review form.
- *
- * Our Battle-Tested Handoff Strategy:
- * 1. Store the AI-generated review text into the device clipboard via `navigator.clipboard.writeText`
- *    (with graceful fallback for older in-app webviews).
- * 2. Display an intuitive HUD modal instructing the user: "Review copied! Tap 5 stars and paste."
- * 3. Deep-link directly into Google's official Local WriteReview dialog using the place ID.
  */
 
-export function getGoogleReviewUrl(placeId: string, businessName?: string): string {
-  // Direct Google local review trigger URL
-  if (placeId && placeId.trim() && !placeId.startsWith("demo-")) {
-    return `https://search.google.com/local/writereview?placeid=${encodeURIComponent(placeId.trim())}`;
+/**
+ * Robust sanitizer that extracts only the valid Place ID token.
+ * Prevents errors when users inadvertently copy both the Place ID and the address text
+ * from the Google Place ID Finder (e.g. "ChIJC-eGOdGpkjkRQRsEQi4SbE0 Opposite Side Of DMI...").
+ */
+export function extractCleanPlaceId(rawInput: string): string {
+  if (!rawInput) return "";
+  const trimmed = rawInput.trim();
+
+  // If input contains full URL with placeid parameter (e.g. ...writereview?placeid=ChIJ...)
+  const urlMatch = trimmed.match(/[?&]placeid=([^&]+)/i);
+  if (urlMatch) {
+    return extractCleanPlaceId(decodeURIComponent(urlMatch[1]));
   }
-  
-  // Fallback to Google Maps query search if Place ID is demo or placeholder
+
+  // Google Place IDs almost always begin with "ChIJ" followed by alphanumeric chars, hyphens, underscores
+  const chijMatch = trimmed.match(/(ChIJ[a-zA-Z0-9_-]+)/);
+  if (chijMatch) {
+    return chijMatch[1];
+  }
+
+  // Fallback: take the first continuous token and strip punctuation
+  const firstToken = trimmed.split(/[\s,]+/)[0];
+  return firstToken.replace(/[^a-zA-Z0-9_-]/g, "");
+}
+
+export function getGoogleReviewUrl(placeId: string, businessName?: string): string {
+  const cleanId = extractCleanPlaceId(placeId);
+
+  // Direct Google local review trigger URL
+  if (cleanId && !cleanId.startsWith("demo-")) {
+    return `https://search.google.com/local/writereview?placeid=${encodeURIComponent(cleanId)}`;
+  }
+
+  // Fallback to Google Maps query search if Place ID is invalid
   const query = businessName || "Google Reviews";
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
 export function getGooglePlaceProfileUrl(placeId: string, businessName?: string): string {
-  if (placeId && placeId.trim() && !placeId.startsWith("demo-")) {
-    return `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(placeId.trim())}`;
+  const cleanId = extractCleanPlaceId(placeId);
+
+  if (cleanId && !cleanId.startsWith("demo-")) {
+    return `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(cleanId)}`;
   }
   const query = businessName || "Google Maps";
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
 export function getNativeAppIntentUrl(placeId: string): string {
-  if (!placeId || placeId.startsWith("demo-")) {
+  const cleanId = extractCleanPlaceId(placeId);
+
+  if (!cleanId || cleanId.startsWith("demo-")) {
     return `https://maps.google.com`;
   }
   // Android Intent URI scheme that directly launches Google Maps app write review
   return `intent://search.google.com/local/writereview?placeid=${encodeURIComponent(
-    placeId
+    cleanId
   )}#Intent;scheme=https;package=com.google.android.apps.maps;end`;
 }
 
@@ -84,10 +105,13 @@ export async function copyTextToClipboard(text: string): Promise<boolean> {
  */
 export function buildQrTargetUrl(baseUrl: string, placeId: string, businessName?: string): string {
   const cleanBase = baseUrl.replace(/\/$/, "");
+  const cleanId = extractCleanPlaceId(placeId);
   const params = new URLSearchParams();
-  if (businessName) {
-    params.set("businessName", businessName);
+  if (cleanId) {
+    params.set("placeId", cleanId);
   }
-  const queryString = params.toString() ? `?${params.toString()}` : "";
-  return `${cleanBase}/review/${encodeURIComponent(placeId)}${queryString}`;
+  if (businessName) {
+    params.set("name", businessName);
+  }
+  return `${cleanBase}/review?${params.toString()}`;
 }

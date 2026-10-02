@@ -9,8 +9,6 @@ import {
   Star,
   Copy,
   Check,
-  ExternalLink,
-  Layers,
   Palette,
   Eye,
 } from "lucide-react";
@@ -112,7 +110,7 @@ export const QrCodeCard: React.FC<QrCodeCardProps> = ({
               <button
                 key={fmt.id}
                 type="button"
-                onClick={() => setConfig({ ...config, cardStyle: fmt.id as any })}
+                onClick={() => setConfig({ ...config, cardStyle: fmt.id as QrCardConfig["cardStyle"] })}
                 className={`text-xs p-2.5 rounded-xl border text-left font-medium transition-all ${
                   config.cardStyle === fmt.id
                     ? "border-indigo-600 bg-indigo-50 text-indigo-700 font-semibold dark:bg-indigo-950/50 dark:border-indigo-500 dark:text-indigo-200"
@@ -268,6 +266,7 @@ export const QrCodeCard: React.FC<QrCodeCardProps> = ({
               style={{ backgroundColor: config.accentColor }}
             >
               {business.logoUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
                 <img
                   src={business.logoUrl}
                   alt={business.name}

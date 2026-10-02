@@ -31,6 +31,8 @@ export interface BusinessProfile {
   headline?: string;
   subheadline?: string;
   customTags: string[];
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ReviewGenerationRequest {

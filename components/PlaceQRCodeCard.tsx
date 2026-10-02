@@ -1,199 +1,251 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import {
   Download,
   Copy,
   Check,
   ExternalLink,
+  Printer,
   QrCode,
   Building,
   MapPin,
   Star,
-  AlertCircle,
 } from "lucide-react";
 import { getStoredBusinesses } from "@/lib/business-store";
+import { extractCleanPlaceId } from "@/lib/google-maps-utils";
+import { CATEGORY_OPTIONS } from "./AdminDashboard";
 
 interface PlaceQRCodeCardProps {
   initialName?: string;
   initialPlaceId?: string;
+  initialCategory?: string;
   className?: string;
 }
+
+const PRESET_SAMPLES = [
+  {
+    name: "NIT Patna Bihta Campus",
+    placeId: "ChIJC-eGOdGpkjkRQRsEQi4SbE0",
+    category: "college",
+  },
+  {
+    name: "Artisan Coffee Roasters",
+    placeId: "ChIJN1t_tDeuEmsRUsoyG83frY4",
+    category: "cafe",
+  },
+  {
+    name: "Apex Dental Clinic",
+    placeId: "ChIJ2eUgeAK6j4ARbm5G4_qR3v4",
+    category: "dentist",
+  },
+];
 
 export const PlaceQRCodeCard: React.FC<PlaceQRCodeCardProps> = ({
   initialName = "",
   initialPlaceId = "",
+  initialCategory = "",
   className = "",
 }) => {
-  const [businessName, setBusinessName] = useState(initialName);
-  const [placeId, setPlaceId] = useState(initialPlaceId);
+  const [businessName, setBusinessName] = useState(() => {
+    if (initialName) return initialName;
+    if (typeof window !== "undefined") {
+      const stored = getStoredBusinesses();
+      if (stored.length > 0) return stored[0].name;
+    }
+    return PRESET_SAMPLES[0].name;
+  });
+
+  const [placeId, setPlaceId] = useState(() => {
+    if (initialPlaceId) return extractCleanPlaceId(initialPlaceId) || initialPlaceId;
+    if (typeof window !== "undefined") {
+      const stored = getStoredBusinesses();
+      if (stored.length > 0) return stored[0].placeId;
+    }
+    return PRESET_SAMPLES[0].placeId;
+  });
+
+  const [category, setCategory] = useState(() => {
+    if (initialCategory) return initialCategory;
+    if (typeof window !== "undefined") {
+      const stored = getStoredBusinesses();
+      if (stored.length > 0) return stored[0].category;
+    }
+    return PRESET_SAMPLES[0].category;
+  });
+
   const [copied, setCopied] = useState(false);
-  const [origin, setOrigin] = useState("http://localhost:3000");
+  const [origin] = useState(() =>
+    typeof window !== "undefined" ? window.location.origin : "http://localhost:3000"
+  );
   const [isExporting, setIsExporting] = useState(false);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      setOrigin(window.location.origin);
-      if (!initialName && !initialPlaceId) {
-        const stored = getStoredBusinesses();
-        if (stored.length > 0) {
-          setBusinessName(stored[0].name);
-          setPlaceId(stored[0].placeId);
-        }
-      }
-    }
-  }, [initialName, initialPlaceId]);
-
-  const hasValidInputs = businessName.trim().length > 0 && placeId.trim().length > 0;
+  const cleanPlaceId = extractCleanPlaceId(placeId);
+  const hasValidInputs = businessName.trim().length > 0 && cleanPlaceId.length > 0;
 
   // Compute dynamic target review URL
   const targetUrl = hasValidInputs
-    ? `${origin}/review?placeId=${encodeURIComponent(
-        placeId.trim()
-      )}&name=${encodeURIComponent(businessName.trim())}`
+    ? `${origin}/review?placeId=${encodeURIComponent(cleanPlaceId)}&name=${encodeURIComponent(
+        businessName.trim()
+      )}${category ? `&category=${encodeURIComponent(category)}` : ""}`
     : `${origin}/review`;
 
-  // Copy target review link to clipboard
   const handleCopyLink = async () => {
     if (!hasValidInputs) return;
     try {
-      if (navigator.clipboard) {
-        await navigator.clipboard.writeText(targetUrl);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = targetUrl;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
-      }
+      await navigator.clipboard.writeText(targetUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    } catch (err) {
-      console.error("Failed to copy link:", err);
+    } catch {
+      // Fallback
     }
   };
 
-  /**
-   * Export high-resolution, print-ready branded card PNG (300 DPI layout).
-   */
+  const handlePrint = () => {
+    window.print();
+  };
+
   const handleDownloadPng = async () => {
-    if (!hasValidInputs) return;
+    if (!hasValidInputs || isExporting) return;
     setIsExporting(true);
+
     try {
       const width = 800;
-      const height = 1100;
+      const height = 1200;
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      // 1. White background
+      // 1. Clean background & border
       ctx.fillStyle = "#ffffff";
       ctx.fillRect(0, 0, width, height);
 
-      // Card border
-      ctx.lineWidth = 10;
+      // Subtle framing border
+      ctx.lineWidth = 4;
       ctx.strokeStyle = "#0f172a";
-      ctx.strokeRect(24, 24, width - 48, height - 48);
-
-      // Inner divider line
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = "#cbd5e1";
       ctx.strokeRect(36, 36, width - 72, height - 72);
 
-      // 2. Header
+      ctx.lineWidth = 1;
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.strokeRect(48, 48, width - 96, height - 96);
+
+      // Header: Review Us on Google
       ctx.fillStyle = "#0f172a";
-      ctx.font = "bold 44px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.font = "bold 38px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
       ctx.textAlign = "center";
+      ctx.fillText("Review Us on Google", width / 2, 130);
 
-      const displayName =
-        businessName.length > 28
-          ? `${businessName.substring(0, 26)}...`
-          : businessName;
-      ctx.fillText(displayName, width / 2, 130);
+      // 5 Gold Stars
+      const starCount = 5;
+      const starSpacing = 42;
+      const startX = width / 2 - ((starCount - 1) * starSpacing) / 2;
+      const starY = 180;
 
-      // Subheader
-      ctx.fillStyle = "#64748b";
-      ctx.font = "600 22px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-      ctx.fillText("Google Maps Verified Venue", width / 2, 175);
+      const drawStar = (cx: number, cy: number, spikes = 5, outerRadius = 16, innerRadius = 8) => {
+        let rot = (Math.PI / 2) * 3;
+        let x = cx;
+        let y = cy;
+        const step = Math.PI / spikes;
 
-      // 3. 5-Star Graphic
-      ctx.fillStyle = "#f59e0b";
-      ctx.font = "34px sans-serif";
-      ctx.fillText("★ ★ ★ ★ ★", width / 2, 230);
+        ctx.beginPath();
+        ctx.moveTo(cx, cy - outerRadius);
+        for (let i = 0; i < spikes; i++) {
+          x = cx + Math.cos(rot) * outerRadius;
+          y = cy + Math.sin(rot) * outerRadius;
+          ctx.lineTo(x, y);
+          rot += step;
 
-      // 4. Headline
-      ctx.fillStyle = "#0f172a";
-      ctx.font = "bold 30px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-      ctx.fillText("How was your experience today?", width / 2, 295);
+          x = cx + Math.cos(rot) * innerRadius;
+          y = cy + Math.sin(rot) * innerRadius;
+          ctx.lineTo(x, y);
+          rot += step;
+        }
+        ctx.lineTo(cx, cy - outerRadius);
+        ctx.closePath();
+        ctx.fillStyle = "#f59e0b";
+        ctx.fill();
+      };
 
-      ctx.fillStyle = "#64748b";
-      ctx.font = "500 20px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-      ctx.fillText("Scan with your phone camera to review on Google", width / 2, 335);
-
-      // 5. Draw QR code
-      const svgElement = document.getElementById("place-qr-svg");
-      if (svgElement) {
-        const svgString = new XMLSerializer().serializeToString(svgElement);
-        const svgBlob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-        const URL = window.URL || window.webkitURL || window;
-        const blobURL = URL.createObjectURL(svgBlob);
-
-        const img = new Image();
-        await new Promise((resolve, reject) => {
-          img.onload = () => {
-            const qrSize = 400;
-            const qrX = (width - qrSize) / 2;
-            const qrY = 380;
-
-            ctx.fillStyle = "#f8fafc";
-            ctx.fillRect(qrX - 20, qrY - 20, qrSize + 40, qrSize + 40);
-            ctx.lineWidth = 2;
-            ctx.strokeStyle = "#e2e8f0";
-            ctx.strokeRect(qrX - 20, qrY - 20, qrSize + 40, qrSize + 40);
-
-            ctx.drawImage(img, qrX, qrY, qrSize, qrSize);
-            URL.revokeObjectURL(blobURL);
-            resolve(true);
-          };
-          img.onerror = reject;
-          img.src = blobURL;
-        });
+      for (let i = 0; i < starCount; i++) {
+        drawStar(startX + i * starSpacing, starY);
       }
 
-      // 6. Pill CTA Button
-      const btnY = 880;
-      const btnW = 540;
-      const btnH = 70;
-      const btnX = (width - btnW) / 2;
+      // Venue Name
+      ctx.fillStyle = "#334155";
+      ctx.font = "600 24px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      const displayName =
+        businessName.length > 32 ? `${businessName.substring(0, 30)}...` : businessName;
+      ctx.fillText(displayName, width / 2, 235);
 
+      // Render QR Code from SVG
+      const qrSvgElement = document.getElementById("place-qr-svg");
+      if (qrSvgElement) {
+        const svgXml = new XMLSerializer().serializeToString(qrSvgElement);
+        const svg64 = btoa(unescape(encodeURIComponent(svgXml)));
+        const image64 = "data:image/svg+xml;base64," + svg64;
+
+        const qrImg = new Image();
+        qrImg.src = image64;
+
+        await new Promise((resolve, reject) => {
+          qrImg.onload = resolve;
+          qrImg.onerror = reject;
+        });
+
+        const qrSize = 490;
+        const qrX = (width - qrSize) / 2;
+        const qrY = 300;
+
+        // Quiet zone container
+        ctx.fillStyle = "#f8fafc";
+        ctx.fillRect(qrX - 20, qrY - 20, qrSize + 40, qrSize + 40);
+        ctx.strokeStyle = "#e2e8f0";
+        ctx.lineWidth = 1;
+        ctx.strokeRect(qrX - 20, qrY - 20, qrSize + 40, qrSize + 40);
+
+        ctx.drawImage(qrImg, qrX, qrY, qrSize, qrSize);
+      }
+
+      // Scan instruction
       ctx.fillStyle = "#0f172a";
-      ctx.beginPath();
-      ctx.roundRect(btnX, btnY, btnW, btnH, 35);
-      ctx.fill();
-
-      ctx.fillStyle = "#ffffff";
       ctx.font = "bold 24px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-      ctx.fillText("Scan to Review on Google Maps", width / 2, btnY + 44);
+      ctx.fillText("Scan with phone camera to review", width / 2, 890);
 
-      // 7. Micro Instructions
+      ctx.fillStyle = "#64748b";
+      ctx.font = "400 18px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.fillText("No app download required", width / 2, 930);
+
+      // Divider
+      ctx.strokeStyle = "#e2e8f0";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(120, 980);
+      ctx.lineTo(width - 120, 980);
+      ctx.stroke();
+
+      // Footer
       ctx.fillStyle = "#94a3b8";
-      ctx.font = "500 17px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
-      ctx.fillText("1. Open Camera  •  2. Tap Link  •  3. Paste & Submit", width / 2, 1010);
+      ctx.font = "14px monospace";
+      ctx.fillText(`Google Place ID: ${cleanPlaceId}`, width / 2, 1025);
 
-      // Download file
-      const link = document.createElement("a");
-      const safeName = businessName.toLowerCase().replace(/[^a-z0-9]/g, "-");
-      link.download = `${safeName}-google-review-qr.png`;
-      link.href = canvas.toDataURL("image/png");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      ctx.fillStyle = "#64748b";
+      ctx.font = "500 16px -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+      ctx.fillText("Thank you for your visit and feedback", width / 2, 1070);
+
+      // Trigger download
+      const pngUrl = canvas.toDataURL("image/png");
+      const downloadLink = document.createElement("a");
+      const sanitizedFilename = businessName.toLowerCase().replace(/[^a-z0-9]/g, "-");
+      downloadLink.download = `${sanitizedFilename}-google-review-stand.png`;
+      downloadLink.href = pngUrl;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
     } catch (err) {
-      console.error("Failed to generate PNG:", err);
+      console.error("Failed to generate printable QR card:", err);
     } finally {
       setIsExporting(false);
     }
@@ -201,141 +253,209 @@ export const PlaceQRCodeCard: React.FC<PlaceQRCodeCardProps> = ({
 
   return (
     <div
-      className={`bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-800 p-6 space-y-6 ${className}`}
+      className={`bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 overflow-hidden ${className}`}
     >
-      <div>
-        <h3 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-          <QrCode className="w-4 h-4 text-slate-700 dark:text-zinc-300" />
-          <span>Google Place QR Code Generator</span>
-        </h3>
-        <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-          Generates a high error-correction QR code linking to your venue's Google review workflow.
-        </p>
-      </div>
-
-      {/* Input Configuration Form */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      {/* Studio Header Bar */}
+      <div className="p-5 border-b border-slate-200 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1 flex items-center gap-1.5">
-            <Building className="w-3.5 h-3.5 text-slate-400" />
-            <span>Business Name</span>
-          </label>
-          <input
-            type="text"
-            value={businessName}
-            onChange={(e) => setBusinessName(e.target.value)}
-            placeholder="e.g. Acme Coffee Roasters"
-            className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-slate-900"
-          />
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+            <QrCode className="w-4 h-4 text-slate-700 dark:text-zinc-300" />
+            <span>Venue Configuration & Stand Proof</span>
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+            Set venue details to generate a 4&quot; × 6&quot; printable counter stand and direct customer review link.
+          </p>
         </div>
 
-        <div>
-          <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1 flex items-center gap-1.5">
-            <MapPin className="w-3.5 h-3.5 text-slate-400" />
-            <span>Google Place ID</span>
-          </label>
-          <input
-            type="text"
-            value={placeId}
-            onChange={(e) => setPlaceId(e.target.value)}
-            placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4"
-            className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 font-mono focus:outline-none focus:ring-1 focus:ring-slate-900"
-          />
+        {/* Quick sample presets */}
+        <div className="flex items-center gap-1.5 flex-wrap text-xs">
+          <span className="text-slate-400">Presets:</span>
+          {PRESET_SAMPLES.map((sample) => (
+            <button
+              key={sample.name}
+              type="button"
+              onClick={() => {
+                setBusinessName(sample.name);
+                setPlaceId(sample.placeId);
+                setCategory(sample.category);
+              }}
+              className="px-2.5 py-1 rounded bg-slate-100 dark:bg-zinc-800 hover:bg-slate-200 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-300 text-[11px] font-medium transition-colors cursor-pointer"
+            >
+              {sample.name.split(" ")[0]}
+            </button>
+          ))}
         </div>
       </div>
 
-      {/* QR Code Preview Card */}
-      {hasValidInputs ? (
-        <div className="bg-slate-50 dark:bg-zinc-950 rounded-xl p-5 border border-slate-200 dark:border-zinc-800 flex flex-col items-center text-center space-y-4">
-          <div>
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
-              {businessName}
-            </h4>
-            <div className="flex items-center justify-center gap-0.5 my-1">
-              {[1, 2, 3, 4, 5].map((s) => (
-                <Star key={s} className="w-3.5 h-3.5 fill-amber-400 text-amber-500" />
-              ))}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 p-6">
+        {/* Left Column: Form Controls */}
+        <div className="lg:col-span-6 space-y-4">
+          {/* Venue Name */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300">
+              Business / Venue Name
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                placeholder="e.g. NIT Patna Campus / Artisan Cafe"
+                className="w-full text-xs sm:text-sm pl-9 pr-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-slate-900 dark:focus:ring-white transition-colors"
+              />
+              <Building className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-zinc-400">
-              Scan to review on Google Maps
-            </p>
           </div>
 
-          {/* High Error Correction QR Code */}
-          <div className="p-3 bg-white rounded-xl shadow-xs border border-slate-200">
-            <QRCodeSVG
-              id="place-qr-svg"
-              value={targetUrl}
-              size={170}
-              level="H"
-              includeMargin={true}
-              fgColor="#0f172a"
-              bgColor="#ffffff"
-            />
+          {/* Google Place ID */}
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300">
+                Google Place ID
+              </label>
+              <a
+                href="https://developers.google.com/maps/documentation/places/web-service/place-id"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[11px] text-slate-500 hover:text-slate-800 dark:hover:text-zinc-200 flex items-center gap-1"
+              >
+                <span>Find Place ID</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+            <div className="relative">
+              <input
+                type="text"
+                value={placeId}
+                onChange={(e) => setPlaceId(e.target.value)}
+                placeholder="ChIJ... or paste Google Maps URL"
+                className="w-full text-xs sm:text-sm font-mono pl-9 pr-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-slate-900 dark:focus:ring-white transition-colors"
+              />
+              <MapPin className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+            </div>
           </div>
 
-          {/* Dynamic URL badge */}
-          <div className="max-w-md w-full bg-white dark:bg-zinc-900 px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-800 flex items-center justify-between text-xs">
-            <span className="truncate font-mono text-[11px] text-slate-600 dark:text-zinc-400 mr-2">
-              {targetUrl}
-            </span>
-            <div className="flex items-center gap-1 shrink-0">
+          {/* Category */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300">
+              Business Category
+            </label>
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-slate-900 dark:focus:ring-white transition-colors cursor-pointer"
+            >
+              {CATEGORY_OPTIONS.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  {cat.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Customer Destination URL */}
+          <div className="pt-2 border-t border-slate-100 dark:border-zinc-800 space-y-1.5">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300">
+              Encoded QR Target URL
+            </label>
+            <div className="flex items-center gap-2 bg-slate-50 dark:bg-zinc-800/60 p-2 rounded-lg border border-slate-200 dark:border-zinc-700">
+              <span className="text-xs text-slate-600 dark:text-zinc-400 font-mono truncate flex-1">
+                {targetUrl}
+              </span>
               <button
                 type="button"
                 onClick={handleCopyLink}
-                className="p-1 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded text-slate-600 dark:text-zinc-300 transition-colors cursor-pointer"
-                title="Copy URL"
+                className="px-2.5 py-1 bg-white dark:bg-zinc-700 hover:bg-slate-100 rounded text-slate-700 dark:text-zinc-200 text-xs flex items-center gap-1 cursor-pointer transition-colors border border-slate-200 dark:border-zinc-600"
               >
-                {copied ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-600" />
-                ) : (
-                  <Copy className="w-3.5 h-3.5" />
-                )}
+                {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                <span className="text-[11px] font-medium">{copied ? "Copied" : "Copy"}</span>
               </button>
-              <a
-                href={targetUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="p-1 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded text-slate-600 dark:text-zinc-300 transition-colors"
-                title="Open in new tab"
-              >
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
             </div>
           </div>
-        </div>
-      ) : (
-        <div className="bg-slate-50 dark:bg-zinc-800/40 rounded-xl p-8 border border-slate-200 dark:border-zinc-800 text-center space-y-2">
-          <AlertCircle className="w-5 h-5 text-slate-400 mx-auto" />
-          <p className="text-xs text-slate-600 dark:text-zinc-400 font-medium">
-            Enter a Business Name and Google Place ID above to preview and download the QR card.
-          </p>
-        </div>
-      )}
 
-      {/* Action Buttons */}
-      <div className="flex flex-col sm:flex-row items-center gap-2.5">
-        <button
-          type="button"
-          onClick={handleDownloadPng}
-          disabled={!hasValidInputs || isExporting}
-          className="w-full sm:flex-1 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 text-white font-medium py-2.5 px-4 rounded-lg text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          <Download className="w-3.5 h-3.5" />
-          <span>{isExporting ? "Rendering PNG..." : "Download High-Res QR Card (PNG)"}</span>
-        </button>
+          {/* Export Actions */}
+          <div className="grid grid-cols-2 gap-3 pt-2">
+            <button
+              type="button"
+              onClick={handleDownloadPng}
+              disabled={!hasValidInputs || isExporting}
+              className="flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 text-white font-medium py-2.5 px-4 rounded-lg text-xs cursor-pointer transition-colors disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              <span>{isExporting ? "Generating..." : "Download 300 DPI PNG"}</span>
+            </button>
 
-        {hasValidInputs && (
-          <a
-            href={targetUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full sm:w-auto bg-slate-100 hover:bg-slate-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-slate-700 dark:text-zinc-200 font-medium py-2.5 px-4 rounded-lg text-xs transition-colors flex items-center justify-center gap-1.5"
+            <button
+              type="button"
+              onClick={handlePrint}
+              disabled={!hasValidInputs}
+              className="flex items-center justify-center gap-2 bg-white dark:bg-zinc-800 hover:bg-slate-50 dark:hover:bg-zinc-700 text-slate-800 dark:text-zinc-200 font-medium py-2.5 px-4 rounded-lg text-xs cursor-pointer transition-colors border border-slate-200 dark:border-zinc-700 disabled:opacity-50"
+            >
+              <Printer className="w-4 h-4" />
+              <span>Print Sign</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Right Column: Physical Print Proof */}
+        <div className="lg:col-span-6 flex flex-col items-center justify-center">
+          <div className="w-full max-w-xs text-center space-y-1 mb-2">
+            <span className="text-xs font-medium text-slate-500 dark:text-zinc-400">
+              Print Proof Preview (4&quot; × 6&quot; Portrait)
+            </span>
+          </div>
+
+          {/* Physical Sign Mockup */}
+          <div
+            id="printable-card"
+            className="w-full max-w-xs bg-white text-slate-900 rounded-lg p-6 border-2 border-slate-800 text-center shadow-sm relative print:shadow-none print:max-w-none print:w-[4in] print:mx-auto"
           >
-            <span>Preview Review Flow</span>
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-        )}
+            {/* Header */}
+            <h4 className="text-base font-bold text-slate-900 tracking-tight">
+              Review Us on Google
+            </h4>
+
+            {/* Stars */}
+            <div className="flex items-center justify-center gap-1 my-2">
+              {[1, 2, 3, 4, 5].map((s) => (
+                <Star key={s} className="w-4 h-4 fill-amber-400 text-amber-400" />
+              ))}
+            </div>
+
+            {/* Venue name */}
+            <p className="text-xs font-semibold text-slate-700 truncate max-w-full px-2 mb-3">
+              {businessName || "Your Venue Name"}
+            </p>
+
+            {/* QR Code */}
+            <div className="p-3 bg-slate-50 rounded-lg border border-slate-200 inline-block">
+              <QRCodeSVG
+                id="place-qr-svg"
+                value={targetUrl}
+                size={160}
+                level="H"
+                includeMargin={true}
+                fgColor="#0f172a"
+                bgColor="#ffffff"
+              />
+            </div>
+
+            {/* Scan prompt */}
+            <p className="text-xs font-semibold text-slate-900 mt-3">
+              Scan with phone camera to review
+            </p>
+            <p className="text-[10px] text-slate-500 mt-0.5">
+              Takes 15 seconds • No app needed
+            </p>
+
+            {/* Footer reference */}
+            {cleanPlaceId && (
+              <div className="mt-3 pt-2 border-t border-slate-100 text-[9px] font-mono text-slate-400 truncate">
+                Place ID: {cleanPlaceId}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

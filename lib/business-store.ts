@@ -171,6 +171,40 @@ export function saveBusiness(business: BusinessProfile): BusinessProfile[] {
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEYS.BUSINESSES, JSON.stringify(updated));
     localStorage.setItem(STORAGE_KEYS.ACTIVE_ID, business.id);
+    fetch("/api/locations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(business),
+    }).catch(() => {});
+  }
+  return updated;
+}
+
+export function saveMultipleBusinesses(newBusinesses: BusinessProfile[]): BusinessProfile[] {
+  const current = getStoredBusinesses();
+  const updated = [...current];
+
+  for (const biz of newBusinesses) {
+    const existingIdx = updated.findIndex(
+      (b) => b.id === biz.id || (biz.placeId && b.placeId === biz.placeId)
+    );
+    if (existingIdx >= 0) {
+      updated[existingIdx] = { ...updated[existingIdx], ...biz };
+    } else {
+      updated.push(biz);
+    }
+  }
+
+  if (typeof window !== "undefined") {
+    localStorage.setItem(STORAGE_KEYS.BUSINESSES, JSON.stringify(updated));
+    if (newBusinesses.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_ID, newBusinesses[0].id);
+    }
+    fetch("/api/locations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ locations: newBusinesses }),
+    }).catch(() => {});
   }
   return updated;
 }
@@ -180,6 +214,9 @@ export function deleteBusiness(id: string): BusinessProfile[] {
   const updated = current.filter((b) => b.id !== id);
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEYS.BUSINESSES, JSON.stringify(updated));
+    fetch(`/api/locations?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }).catch(() => {});
   }
   return updated;
 }
@@ -247,6 +284,18 @@ export function trackAnalyticsEvent(
       `${STORAGE_KEYS.ANALYTICS}_${businessId}`,
       JSON.stringify(metrics)
     );
+
+    if (typeof window !== "undefined") {
+      fetch("/api/analytics", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          businessId,
+          type: event === "private_feedback" ? "feedback" : event,
+          rating,
+        }),
+      }).catch(() => {});
+    }
   } catch (e) {
     console.error("Failed to track analytics:", e);
   }
@@ -280,6 +329,11 @@ export function addPrivateFeedback(
   const updated = [newSubmission, ...current];
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEYS.FEEDBACKS, JSON.stringify(updated));
+    fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newSubmission),
+    }).catch(() => {});
   }
   trackAnalyticsEvent(submission.businessId, "private_feedback", submission.rating);
   return newSubmission;
@@ -295,5 +349,29 @@ export function updateFeedbackStatus(
   );
   if (typeof window !== "undefined") {
     localStorage.setItem(STORAGE_KEYS.FEEDBACKS, JSON.stringify(updated));
+    fetch("/api/feedback", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, status }),
+    }).catch(() => {});
   }
+}
+
+/**
+ * Syncs saved locations from MongoDB into local state.
+ */
+export async function syncLocationsFromDb(): Promise<BusinessProfile[]> {
+  if (typeof window === "undefined") return [];
+  try {
+    const res = await fetch("/api/locations");
+    if (!res.ok) return getStoredBusinesses();
+    const data = await res.json();
+    if (data.connected && Array.isArray(data.locations) && data.locations.length > 0) {
+      localStorage.setItem(STORAGE_KEYS.BUSINESSES, JSON.stringify(data.locations));
+      return data.locations;
+    }
+  } catch (err) {
+    console.warn("Could not sync from database, using local cache:", err);
+  }
+  return getStoredBusinesses();
 }
