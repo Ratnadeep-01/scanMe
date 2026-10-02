@@ -19,7 +19,7 @@ import {
   Trash2,
   AlertCircle,
 } from "lucide-react";
-import { BusinessProfile, AnalyticsMetrics, PrivateFeedbackSubmission } from "@/lib/types";
+import { BusinessProfile, AnalyticsMetrics, PrivateFeedbackSubmission, BusinessCategory } from "@/lib/types";
 import {
   getStoredBusinesses,
   saveBusiness,
@@ -32,6 +32,85 @@ import {
 } from "@/lib/business-store";
 import { PlaceQRCodeCard } from "./PlaceQRCodeCard";
 import { getGoogleReviewUrl } from "@/lib/google-maps-utils";
+
+export const CATEGORY_OPTIONS: { id: BusinessCategory; label: string; defaultTags: string[] }[] = [
+  {
+    id: "college",
+    label: "College / University / Higher Education",
+    defaultTags: [
+      "Knowledgeable faculty",
+      "Great campus & facilities",
+      "Modern labs & library",
+      "Helpful administration",
+      "Vibrant student life",
+    ],
+  },
+  {
+    id: "education",
+    label: "School / Education / Training Institute",
+    defaultTags: [
+      "Expert instructors",
+      "Structured curriculum",
+      "Great learning environment",
+      "Helpful staff",
+    ],
+  },
+  {
+    id: "restaurant",
+    label: "Restaurant / Dining",
+    defaultTags: ["Prompt service", "Great food quality", "Clean environment", "Attentive staff"],
+  },
+  {
+    id: "cafe",
+    label: "Cafe / Bakery",
+    defaultTags: ["Quality coffee", "Fast takeaway", "Friendly baristas", "Clean seating"],
+  },
+  {
+    id: "dentist",
+    label: "Dental Clinic",
+    defaultTags: ["Punctual appointment", "Gentle treatment", "Clean clinic", "Professional team"],
+  },
+  {
+    id: "healthcare",
+    label: "Healthcare / Hospital / Clinic",
+    defaultTags: ["Attentive care", "Clear explanations", "Minimal wait time", "Clean facilities"],
+  },
+  {
+    id: "hotel",
+    label: "Hotel / Hospitality",
+    defaultTags: ["Clean rooms", "Comfortable bed", "Smooth check-in", "Attentive staff"],
+  },
+  {
+    id: "salon",
+    label: "Salon / Barber / Spa",
+    defaultTags: ["Skilled stylist", "Clean salon", "Punctual service", "Great results"],
+  },
+  {
+    id: "automotive",
+    label: "Automotive Service / Repair",
+    defaultTags: ["Honest diagnosis", "Fast turnaround", "Clear quote", "Professional mechanics"],
+  },
+  {
+    id: "retail",
+    label: "Retail Store / Shop",
+    defaultTags: ["Helpful staff", "Organized layout", "Smooth checkout", "Good selection"],
+  },
+  {
+    id: "gym",
+    label: "Gym / Fitness Center",
+    defaultTags: ["Clean equipment", "Well-maintained facilities", "Helpful trainers"],
+  },
+  {
+    id: "professional",
+    label: "Professional Services",
+    defaultTags: ["Prompt communication", "Attention to detail", "Reliable delivery"],
+  },
+  {
+    id: "other",
+    label: "Other Business / Venue",
+    defaultTags: ["High quality service", "Professional team", "Prompt turnaround", "Clean premises"],
+  },
+];
 
 export const AdminDashboard: React.FC = () => {
   const [businesses, setBusinesses] = useState<BusinessProfile[]>([]);
@@ -52,7 +131,7 @@ export const AdminDashboard: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [newBizName, setNewBizName] = useState("");
   const [newBizPlaceId, setNewBizPlaceId] = useState("");
-  const [newBizCategory, setNewBizCategory] = useState("restaurant");
+  const [newBizCategory, setNewBizCategory] = useState<BusinessCategory>("college");
 
   // Load saved businesses
   useEffect(() => {
@@ -120,20 +199,23 @@ export const AdminDashboard: React.FC = () => {
     e.preventDefault();
     if (!newBizName.trim() || !newBizPlaceId.trim()) return;
 
+    const catConfig =
+      CATEGORY_OPTIONS.find((c) => c.id === newBizCategory) || CATEGORY_OPTIONS[0];
+
     const newBiz: BusinessProfile = {
       id: `biz-${Date.now()}`,
       name: newBizName.trim(),
       placeId: newBizPlaceId.trim(),
       category: newBizCategory as any,
-      categoryLabel: newBizCategory.charAt(0).toUpperCase() + newBizCategory.slice(1),
+      categoryLabel: catConfig.label,
       address: "Verified Address",
       city: "Local Area",
       brandColor: "#0f172a",
       ratingAverage: 5.0,
       totalGoogleReviews: 0,
-      headline: `How was your visit to ${newBizName}?`,
+      headline: `How was your visit to ${newBizName.trim()}?`,
       subheadline: "Scan with your camera to leave a quick Google review",
-      customTags: ["Prompt service", "Quality experience", "Helpful staff"],
+      customTags: catConfig.defaultTags,
     };
 
     const updated = saveBusiness(newBiz);
@@ -142,6 +224,7 @@ export const AdminDashboard: React.FC = () => {
     setShowAddModal(false);
     setNewBizName("");
     setNewBizPlaceId("");
+    setNewBizCategory("college");
   };
 
   const handleDeleteCurrent = () => {
@@ -214,24 +297,18 @@ export const AdminDashboard: React.FC = () => {
 
             <div>
               <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1">
-                Industry Category
+                Category
               </label>
               <select
                 value={newBizCategory}
-                onChange={(e) => setNewBizCategory(e.target.value)}
+                onChange={(e) => setNewBizCategory(e.target.value as any)}
                 className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-slate-900"
               >
-                <option value="restaurant">Restaurant / Dining</option>
-                <option value="cafe">Cafe / Bakery</option>
-                <option value="hotel">Hotel / Hospitality</option>
-                <option value="dentist">Dental Clinic</option>
-                <option value="healthcare">Healthcare / Medical</option>
-                <option value="salon">Salon / Barber</option>
-                <option value="automotive">Automotive Repair</option>
-                <option value="retail">Retail Store</option>
-                <option value="gym">Gym / Fitness</option>
-                <option value="professional">Professional Services</option>
-                <option value="other">Other Business</option>
+                {CATEGORY_OPTIONS.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.label}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -584,7 +661,7 @@ export const AdminDashboard: React.FC = () => {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
               <label className="block text-slate-700 dark:text-zinc-300 font-medium mb-1">
                 Business Name
@@ -613,6 +690,31 @@ export const AdminDashboard: React.FC = () => {
                 }
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono text-slate-900 dark:text-zinc-100"
               />
+            </div>
+
+            <div>
+              <label className="block text-slate-700 dark:text-zinc-300 font-medium mb-1">
+                Category
+              </label>
+              <select
+                value={editingBusiness.category}
+                onChange={(e) => {
+                  const catId = e.target.value as BusinessCategory;
+                  const catConfig = CATEGORY_OPTIONS.find((c) => c.id === catId);
+                  setEditingBusiness({
+                    ...editingBusiness,
+                    category: catId,
+                    categoryLabel: catConfig?.label || catId,
+                  });
+                }}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100"
+              >
+                {CATEGORY_OPTIONS.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -714,6 +816,23 @@ export const AdminDashboard: React.FC = () => {
                 onChange={(e) => setNewBizPlaceId(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono text-slate-900 dark:text-zinc-100"
               />
+            </div>
+
+            <div>
+              <label className="block text-slate-700 dark:text-zinc-300 font-medium mb-1">
+                Category
+              </label>
+              <select
+                value={newBizCategory}
+                onChange={(e) => setNewBizCategory(e.target.value as any)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100"
+              >
+                {CATEGORY_OPTIONS.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-zinc-800">

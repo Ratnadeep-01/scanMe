@@ -84,6 +84,8 @@ export function generateFallbackReview(req: ReviewGenerationRequest): {
     automotive: { noun: "mechanics and repairs", action: "getting my car serviced", compliment: "honest pricing and fast turnaround" },
     retail: { noun: "selection and customer care", action: "shopping here", compliment: "found exactly what I needed" },
     gym: { noun: "equipment and trainers", action: "working out here", compliment: "clean facilities and motivating atmosphere" },
+    college: { noun: "academics and campus life", action: "studying here", compliment: "the professors and campus facilities are exceptional" },
+    education: { noun: "courses and instruction", action: "learning here", compliment: "the faculty and curriculum are top notch" },
     professional: { noun: "service and expertise", action: "working with them", compliment: "handled everything with utmost attention to detail" },
     other: { noun: "service and experience", action: "visiting", compliment: "exceeded all my expectations" },
   };

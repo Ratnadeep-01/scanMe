@@ -63,6 +63,22 @@ export const CATEGORY_TAG_PRESETS: Record<BusinessCategory, string[]> = {
     "Helpful trainers",
     "Good atmosphere",
   ],
+  college: [
+    "Knowledgeable faculty",
+    "Great campus & facilities",
+    "Modern labs & library",
+    "Helpful administration",
+    "Vibrant student life",
+    "Strong career placement",
+    "Supportive professors",
+  ],
+  education: [
+    "Expert instructors",
+    "Structured curriculum",
+    "Great learning environment",
+    "Helpful academic staff",
+    "Well-equipped classrooms",
+  ],
   professional: [
     "Prompt communication",
     "Attention to detail",

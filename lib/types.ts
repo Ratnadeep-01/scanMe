@@ -8,6 +8,8 @@ export type BusinessCategory =
   | "automotive"
   | "retail"
   | "gym"
+  | "college"
+  | "education"
   | "professional"
   | "other";
 
