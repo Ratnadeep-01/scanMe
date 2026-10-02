@@ -6,44 +6,40 @@ import {
   QrCode,
   Store,
   MessageSquareX,
-  Smartphone,
   Plus,
   ExternalLink,
-  CheckCircle2,
-  TrendingUp,
-  Users,
-  Sparkles,
-  ArrowUpRight,
   ShieldCheck,
   Star,
-  Search,
   Settings,
   Mail,
   Phone,
   Clock,
   ChevronDown,
+  Building,
+  Trash2,
+  AlertCircle,
 } from "lucide-react";
 import { BusinessProfile, AnalyticsMetrics, PrivateFeedbackSubmission } from "@/lib/types";
 import {
   getStoredBusinesses,
   saveBusiness,
+  deleteBusiness,
   getStoredAnalytics,
   getStoredFeedbacks,
   updateFeedbackStatus,
+  setActiveBusinessId,
+  getActiveBusinessId,
 } from "@/lib/business-store";
-import { QrCodeCard } from "./QrCodeCard";
 import { PlaceQRCodeCard } from "./PlaceQRCodeCard";
-import { ReviewFlow } from "./ReviewFlow";
-import { getGoogleReviewUrl, getGooglePlaceProfileUrl } from "@/lib/google-maps-utils";
+import { getGoogleReviewUrl } from "@/lib/google-maps-utils";
 
 export const AdminDashboard: React.FC = () => {
   const [businesses, setBusinesses] = useState<BusinessProfile[]>([]);
   const [selectedBusinessId, setSelectedBusinessId] = useState<string>("");
   const [activeTab, setActiveTab] = useState<
-    "analytics" | "qrcode" | "profile" | "feedback" | "simulator"
+    "analytics" | "qrcode" | "profile" | "feedback"
   >("analytics");
 
-  // State for analytics and feedback
   const [analytics, setAnalytics] = useState<AnalyticsMetrics | null>(null);
   const [feedbacks, setFeedbacks] = useState<PrivateFeedbackSubmission[]>([]);
 
@@ -58,23 +54,30 @@ export const AdminDashboard: React.FC = () => {
   const [newBizPlaceId, setNewBizPlaceId] = useState("");
   const [newBizCategory, setNewBizCategory] = useState("restaurant");
 
-  // Load initial businesses
+  // Load saved businesses
   useEffect(() => {
     const list = getStoredBusinesses();
     setBusinesses(list);
+
     if (list.length > 0) {
-      setSelectedBusinessId(list[0].id);
+      const activeId = getActiveBusinessId();
+      const initial = list.find((b) => b.id === activeId) || list[0];
+      setSelectedBusinessId(initial.id);
     }
   }, []);
 
-  const currentBusiness = businesses.find((b) => b.id === selectedBusinessId) || businesses[0];
+  const currentBusiness = businesses.find((b) => b.id === selectedBusinessId) || null;
 
-  // Refresh analytics & feedbacks when business changes
   useEffect(() => {
     if (currentBusiness) {
       setAnalytics(getStoredAnalytics(currentBusiness.id));
       setFeedbacks(getStoredFeedbacks(currentBusiness.id));
       setEditingBusiness(currentBusiness);
+      setActiveBusinessId(currentBusiness.id);
+    } else {
+      setAnalytics(null);
+      setFeedbacks([]);
+      setEditingBusiness(null);
     }
   }, [currentBusiness?.id]);
 
@@ -90,7 +93,7 @@ export const AdminDashboard: React.FC = () => {
     if (!editingBusiness) return;
     const updated = saveBusiness(editingBusiness);
     setBusinesses(updated);
-    setSaveSuccessMessage("Settings saved successfully!");
+    setSaveSuccessMessage("Profile saved successfully.");
     setTimeout(() => setSaveSuccessMessage(""), 3000);
   };
 
@@ -123,14 +126,14 @@ export const AdminDashboard: React.FC = () => {
       placeId: newBizPlaceId.trim(),
       category: newBizCategory as any,
       categoryLabel: newBizCategory.charAt(0).toUpperCase() + newBizCategory.slice(1),
-      address: "123 Main Street",
-      city: "Your City",
-      brandColor: "#0284c7",
+      address: "Verified Address",
+      city: "Local Area",
+      brandColor: "#0f172a",
       ratingAverage: 5.0,
-      totalGoogleReviews: 1,
-      headline: `Loved your experience at ${newBizName}?`,
-      subheadline: "Scan with your camera to leave a quick Google review!",
-      customTags: ["Fast friendly service", "High quality", "Clean & welcoming"],
+      totalGoogleReviews: 0,
+      headline: `How was your visit to ${newBizName}?`,
+      subheadline: "Scan with your camera to leave a quick Google review",
+      customTags: ["Prompt service", "Quality experience", "Helpful staff"],
     };
 
     const updated = saveBusiness(newBiz);
@@ -141,10 +144,105 @@ export const AdminDashboard: React.FC = () => {
     setNewBizPlaceId("");
   };
 
+  const handleDeleteCurrent = () => {
+    if (!currentBusiness) return;
+    if (confirm(`Remove location "${currentBusiness.name}" from dashboard?`)) {
+      const remaining = deleteBusiness(currentBusiness.id);
+      setBusinesses(remaining);
+      if (remaining.length > 0) {
+        setSelectedBusinessId(remaining[0].id);
+      } else {
+        setSelectedBusinessId("");
+      }
+    }
+  };
+
+  // If no businesses are configured yet, display clean onboarding
   if (!currentBusiness) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-slate-500 font-medium">Loading Business Profile...</div>
+      <div className="max-w-xl mx-auto space-y-6 py-8">
+        <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-800 p-6 sm:p-8 space-y-5">
+          <div className="w-10 h-10 rounded-xl bg-slate-900 text-white flex items-center justify-center">
+            <Building className="w-5 h-5" />
+          </div>
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              Connect Google Business Location
+            </h2>
+            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
+              Add your Google Place ID to generate printable QR codes and track customer review handoffs.
+            </p>
+          </div>
+
+          <form onSubmit={handleCreateNewBusiness} className="space-y-4 pt-2">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                Business Name
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. Acme Coffee Roasters"
+                value={newBizName}
+                onChange={(e) => setNewBizName(e.target.value)}
+                className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-slate-900"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1 flex items-center justify-between">
+                <span>Google Place ID</span>
+                <a
+                  href="https://developers.google.com/maps/documentation/places/web-service/place-id"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] text-slate-500 hover:text-slate-800 underline flex items-center gap-1"
+                >
+                  <span>Place ID Finder</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </label>
+              <input
+                type="text"
+                required
+                placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4"
+                value={newBizPlaceId}
+                onChange={(e) => setNewBizPlaceId(e.target.value)}
+                className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-slate-900"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-slate-700 dark:text-zinc-300 mb-1">
+                Industry Category
+              </label>
+              <select
+                value={newBizCategory}
+                onChange={(e) => setNewBizCategory(e.target.value)}
+                className="w-full text-xs sm:text-sm px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100 focus:outline-none focus:ring-1 focus:ring-slate-900"
+              >
+                <option value="restaurant">Restaurant / Dining</option>
+                <option value="cafe">Cafe / Bakery</option>
+                <option value="hotel">Hotel / Hospitality</option>
+                <option value="dentist">Dental Clinic</option>
+                <option value="healthcare">Healthcare / Medical</option>
+                <option value="salon">Salon / Barber</option>
+                <option value="automotive">Automotive Repair</option>
+                <option value="retail">Retail Store</option>
+                <option value="gym">Gym / Fitness</option>
+                <option value="professional">Professional Services</option>
+                <option value="other">Other Business</option>
+              </select>
+            </div>
+
+            <button
+              type="submit"
+              className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 text-white font-medium py-2.5 px-4 rounded-lg text-xs transition-colors cursor-pointer"
+            >
+              Save & Generate QR Codes
+            </button>
+          </form>
+        </div>
       </div>
     );
   }
@@ -156,76 +254,63 @@ export const AdminDashboard: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Bar: Multi-Tenant Business Selector & Header */}
-      <div className="bg-white dark:bg-zinc-900 rounded-3xl p-5 sm:p-6 border border-slate-100 dark:border-zinc-800 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div
-            className="w-14 h-14 rounded-2xl p-1 shadow-sm flex items-center justify-center overflow-hidden bg-slate-900 text-white font-bold text-xl shrink-0"
-            style={{ backgroundColor: currentBusiness.brandColor || "#0f172a" }}
-          >
-            {currentBusiness.logoUrl ? (
-              <img
-                src={currentBusiness.logoUrl}
-                alt={currentBusiness.name}
-                className="w-full h-full object-cover rounded-xl"
-              />
-            ) : (
-              currentBusiness.name.charAt(0)
-            )}
+      {/* Top Bar: Location Switcher & Place ID Header */}
+      <div className="bg-white dark:bg-zinc-900 rounded-2xl p-5 border border-slate-200 dark:border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              {currentBusiness.name}
+            </h2>
+            <span className="text-[11px] font-mono text-slate-500 bg-slate-100 dark:bg-zinc-800 px-2 py-0.5 rounded">
+              {currentBusiness.placeId}
+            </span>
           </div>
-
-          <div>
-            <div className="flex items-center gap-2">
-              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
-                {currentBusiness.name}
-              </h2>
-              <span className="bg-emerald-50 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[11px] font-semibold px-2.5 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
-                <ShieldCheck className="w-3 h-3" />
-                Active Location
-              </span>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-              Place ID: <span className="font-mono text-slate-700 dark:text-zinc-300">{currentBusiness.placeId}</span> • {currentBusiness.city}
-            </p>
-          </div>
+          <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
+            Category: {currentBusiness.categoryLabel || currentBusiness.category}
+          </p>
         </div>
 
-        {/* Business Selector Switcher */}
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <select
-              value={selectedBusinessId}
-              onChange={(e) => setSelectedBusinessId(e.target.value)}
-              className="appearance-none bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-xl px-4 py-2.5 pr-9 text-xs sm:text-sm font-semibold text-slate-800 dark:text-zinc-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-            >
-              {businesses.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.category})
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-          </div>
+        {/* Location selector switcher & actions */}
+        <div className="flex items-center gap-2">
+          {businesses.length > 1 && (
+            <div className="relative">
+              <select
+                value={selectedBusinessId}
+                onChange={(e) => setSelectedBusinessId(e.target.value)}
+                className="appearance-none bg-slate-50 dark:bg-zinc-800 border border-slate-200 dark:border-zinc-700 rounded-lg px-3 py-2 pr-8 text-xs font-medium text-slate-800 dark:text-zinc-200 focus:outline-none cursor-pointer"
+              >
+                {businesses.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-slate-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            </div>
+          )}
 
           <button
             type="button"
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-3.5 py-2.5 rounded-xl text-xs sm:text-sm transition-colors cursor-pointer shadow-sm shadow-indigo-500/20"
+            className="flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 text-white font-medium px-3 py-2 rounded-lg text-xs transition-colors cursor-pointer"
           >
-            <Plus className="w-4 h-4" />
-            <span className="hidden sm:inline">Add Location</span>
+            <Plus className="w-3.5 h-3.5" />
+            <span>Add Location</span>
           </button>
         </div>
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-zinc-800 pb-2 overflow-x-auto">
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-zinc-800 pb-2">
         {[
-          { id: "analytics", label: "Analytics & ROI", icon: BarChart3 },
-          { id: "qrcode", label: "Printable QR Studio", icon: QrCode },
-          { id: "simulator", label: "Customer Simulator", icon: Smartphone },
-          { id: "feedback", label: `Grievances Inbox (${feedbacks.filter(f => f.status === 'new').length} New)`, icon: MessageSquareX },
-          { id: "profile", label: "Google Place Settings", icon: Settings },
+          { id: "analytics", label: "Overview & Analytics", icon: BarChart3 },
+          { id: "qrcode", label: "QR Code Generator", icon: QrCode },
+          {
+            id: "feedback",
+            label: `Feedback Inbox (${feedbacks.length})`,
+            icon: MessageSquareX,
+          },
+          { id: "profile", label: "Place Settings", icon: Settings },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -234,225 +319,169 @@ export const AdminDashboard: React.FC = () => {
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium text-xs sm:text-sm whitespace-nowrap transition-all cursor-pointer ${
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-colors cursor-pointer ${
                 isActive
-                  ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm"
+                  ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
                   : "text-slate-600 dark:text-zinc-400 hover:bg-slate-100 dark:hover:bg-zinc-800"
               }`}
             >
-              <Icon className="w-4 h-4" />
+              <Icon className="w-3.5 h-3.5" />
               <span>{tab.label}</span>
             </button>
           );
         })}
       </div>
 
-      {/* ---------------------------------------------------- */}
-      {/* TAB 1: ANALYTICS & PERFORMANCE METRICS */}
-      {/* ---------------------------------------------------- */}
+      {/* TAB 1: OVERVIEW & REAL ANALYTICS */}
       {activeTab === "analytics" && analytics && (
         <div className="space-y-6">
-          {/* Key Metrics Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-slate-100 dark:border-zinc-800 shadow-xs">
-              <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">
-                <span>Total QR Scans</span>
-                <QrCode className="w-4 h-4 text-indigo-500" />
-              </div>
-              <div className="text-3xl font-extrabold text-slate-900 dark:text-white">
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-xl border border-slate-200 dark:border-zinc-800">
+              <span className="text-xs font-medium text-slate-500">QR Code Scans</span>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
                 {analytics.totalScans}
               </div>
-              <p className="text-xs text-emerald-600 flex items-center gap-1 mt-1 font-medium">
-                <TrendingUp className="w-3.5 h-3.5" /> +18.4% from physical cards
+              <p className="text-[11px] text-slate-400 mt-1">
+                Total page visits via QR URL
               </p>
             </div>
 
-            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-slate-100 dark:border-zinc-800 shadow-xs">
-              <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">
-                <span>AI Drafts Created</span>
-                <Sparkles className="w-4 h-4 text-amber-500" />
-              </div>
-              <div className="text-3xl font-extrabold text-slate-900 dark:text-white">
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-xl border border-slate-200 dark:border-zinc-800">
+              <span className="text-xs font-medium text-slate-500">AI Drafts Generated</span>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
                 {analytics.aiReviewsGenerated}
               </div>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
-                {Math.round((analytics.aiReviewsGenerated / (analytics.totalScans || 1)) * 100)}% engagement rate
+              <p className="text-[11px] text-slate-400 mt-1">
+                Reviews drafted by visitors
               </p>
             </div>
 
-            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-slate-100 dark:border-zinc-800 shadow-xs">
-              <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">
-                <span>Google Handoffs</span>
-                <ArrowUpRight className="w-4 h-4 text-emerald-500" />
-              </div>
-              <div className="text-3xl font-extrabold text-slate-900 dark:text-white">
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-xl border border-slate-200 dark:border-zinc-800">
+              <span className="text-xs font-medium text-slate-500">Google Maps Handoffs</span>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
                 {analytics.googleMapsHandoffs}
               </div>
-              <p className="text-xs text-emerald-600 font-semibold mt-1">
-                {analytics.conversionRate}% overall conversion rate
+              <p className="text-[11px] text-slate-400 mt-1">
+                Redirects to Google review dialog
               </p>
             </div>
 
-            <div className="bg-white dark:bg-zinc-900 p-5 rounded-2xl border border-slate-100 dark:border-zinc-800 shadow-xs">
-              <div className="flex items-center justify-between text-slate-500 dark:text-zinc-400 text-xs font-semibold uppercase tracking-wider mb-2">
-                <span>Bad Reviews Deflected</span>
-                <ShieldCheck className="w-4 h-4 text-rose-500" />
-              </div>
-              <div className="text-3xl font-extrabold text-slate-900 dark:text-white">
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-xl border border-slate-200 dark:border-zinc-800">
+              <span className="text-xs font-medium text-slate-500">Private Feedbacks</span>
+              <div className="text-2xl font-bold text-slate-900 dark:text-white mt-1">
                 {analytics.privateFeedbacksCaptured}
               </div>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
-                Routed to private inbox instead of Google
+              <p className="text-[11px] text-slate-400 mt-1">
+                Internal grievances submitted
               </p>
             </div>
           </div>
 
-          {/* Review Funnel & Rating Distribution */}
+          {/* Funnel & Rating Distribution */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Visual Conversion Funnel */}
-            <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-slate-100 dark:border-zinc-800 shadow-xs space-y-4">
-              <h3 className="font-bold text-slate-900 dark:text-white text-base">
-                Customer Review Conversion Funnel
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-4">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                Review Funnel
               </h3>
 
-              <div className="space-y-3 pt-2">
-                <div>
-                  <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-zinc-300 mb-1">
-                    <span>1. QR Code Scanned at Table / Counter</span>
-                    <span className="font-bold">{analytics.totalScans} (100%)</span>
+              {analytics.totalScans === 0 ? (
+                <div className="text-xs text-slate-400 py-8 text-center">
+                  No scans recorded yet. Place QR codes on tables or counters to begin capturing reviews.
+                </div>
+              ) : (
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span>1. Scanned QR Code</span>
+                      <span className="font-mono">{analytics.totalScans} (100%)</span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
+                      <div className="bg-slate-900 dark:bg-white h-full" style={{ width: "100%" }} />
+                    </div>
                   </div>
-                  <div className="w-full bg-slate-100 dark:bg-zinc-800 h-3 rounded-full overflow-hidden">
-                    <div className="bg-indigo-600 h-full rounded-full" style={{ width: "100%" }} />
+
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span>2. Generated AI Review Text</span>
+                      <span className="font-mono">
+                        {analytics.aiReviewsGenerated} (
+                        {Math.round((analytics.aiReviewsGenerated / analytics.totalScans) * 100)}
+                        %)
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-slate-700 dark:bg-zinc-300 h-full"
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.round((analytics.aiReviewsGenerated / analytics.totalScans) * 100)
+                          )}%`,
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="flex justify-between mb-1">
+                      <span>3. Copied & Redirected to Google Maps</span>
+                      <span className="font-mono">
+                        {analytics.googleMapsHandoffs} ({analytics.conversionRate}%)
+                      </span>
+                    </div>
+                    <div className="w-full bg-slate-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-emerald-600 h-full"
+                        style={{ width: `${Math.min(100, analytics.conversionRate)}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-zinc-300 mb-1">
-                    <span>2. Rated 4 or 5 Stars</span>
-                    <span className="font-bold">
-                      {analytics.ratingDistribution[5] + analytics.ratingDistribution[4]} (
-                      {Math.round(
-                        ((analytics.ratingDistribution[5] + analytics.ratingDistribution[4]) /
-                          (analytics.totalScans || 1)) *
-                          100
-                      )}
-                      %)
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-100 dark:bg-zinc-800 h-3 rounded-full overflow-hidden">
-                    <div
-                      className="bg-emerald-500 h-full rounded-full"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          Math.round(
-                            ((analytics.ratingDistribution[5] + analytics.ratingDistribution[4]) /
-                              (analytics.totalScans || 1)) *
-                              100
-                          )
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-zinc-300 mb-1">
-                    <span>3. Generated AI Review Text</span>
-                    <span className="font-bold">
-                      {analytics.aiReviewsGenerated} (
-                      {Math.round((analytics.aiReviewsGenerated / (analytics.totalScans || 1)) * 100)}
-                      %)
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-100 dark:bg-zinc-800 h-3 rounded-full overflow-hidden">
-                    <div
-                      className="bg-amber-500 h-full rounded-full"
-                      style={{
-                        width: `${Math.min(
-                          100,
-                          Math.round((analytics.aiReviewsGenerated / (analytics.totalScans || 1)) * 100)
-                        )}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-medium text-slate-600 dark:text-zinc-300 mb-1">
-                    <span>4. Copied & Redirected to Google Maps</span>
-                    <span className="font-bold">
-                      {analytics.googleMapsHandoffs} ({analytics.conversionRate}%)
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-100 dark:bg-zinc-800 h-3 rounded-full overflow-hidden">
-                    <div
-                      className="bg-teal-500 h-full rounded-full"
-                      style={{ width: `${Math.min(100, analytics.conversionRate)}%` }}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 p-3.5 rounded-2xl text-xs text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>
-                  High conversion achieved by minimizing friction with 1-tap AI drafting and auto-clipboard handoff!
-                </span>
-              </div>
+              )}
             </div>
 
-            {/* Rating Breakdown */}
-            <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl border border-slate-100 dark:border-zinc-800 shadow-xs space-y-4">
-              <h3 className="font-bold text-slate-900 dark:text-white text-base">
-                Customer Rating Distribution
+            <div className="bg-white dark:bg-zinc-900 p-5 rounded-xl border border-slate-200 dark:border-zinc-800 space-y-4">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                Rating Breakdown
               </h3>
 
-              <div className="space-y-2.5 pt-1">
+              <div className="space-y-2 text-xs">
                 {[5, 4, 3, 2, 1].map((stars) => {
                   const count = (analytics.ratingDistribution as any)[stars] || 0;
                   const total =
                     Object.values(analytics.ratingDistribution).reduce((a, b) => a + b, 0) || 1;
-                  const pct = Math.round((count / total) * 100);
+                  const pct = total > 0 ? Math.round((count / total) * 100) : 0;
 
                   return (
-                    <div key={stars} className="flex items-center gap-3 text-xs">
-                      <div className="flex items-center gap-1 w-14 font-medium text-slate-700 dark:text-zinc-300">
-                        <span>{stars}</span>
-                        <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
-                      </div>
-
-                      <div className="flex-1 bg-slate-100 dark:bg-zinc-800 h-2.5 rounded-full overflow-hidden">
+                    <div key={stars} className="flex items-center gap-2">
+                      <span className="w-12 text-slate-600 dark:text-zinc-400">
+                        {stars} Stars
+                      </span>
+                      <div className="flex-1 bg-slate-100 dark:bg-zinc-800 h-2 rounded-full overflow-hidden">
                         <div
-                          className={`h-full rounded-full ${
-                            stars >= 4
-                              ? "bg-amber-400"
-                              : stars === 3
-                              ? "bg-slate-400"
-                              : "bg-rose-400"
+                          className={`h-full ${
+                            stars >= 4 ? "bg-amber-400" : "bg-slate-400"
                           }`}
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-
-                      <div className="w-16 text-right font-mono text-slate-500 dark:text-zinc-400">
-                        {count} ({pct}%)
-                      </div>
+                      <span className="w-12 text-right font-mono text-slate-500">
+                        {count}
+                      </span>
                     </div>
                   );
                 })}
               </div>
 
-              <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between text-xs">
-                <span className="text-slate-500">Live Google Place Link:</span>
+              <div className="pt-2 border-t border-slate-100 dark:border-zinc-800 text-xs">
                 <a
                   href={directGoogleReviewUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-indigo-600 hover:text-indigo-700 font-semibold flex items-center gap-1"
+                  className="text-slate-600 hover:text-slate-900 dark:text-zinc-400 dark:hover:text-white flex items-center gap-1"
                 >
-                  <span>Test Google Review Page</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
+                  <span>Test Google Place Review Dialog</span>
+                  <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
             </div>
@@ -460,168 +489,77 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* ---------------------------------------------------- */}
-      {/* TAB 2: PRINTABLE QR CODE STUDIO */}
-      {/* ---------------------------------------------------- */}
+      {/* TAB 2: QR CODE STUDIO */}
       {activeTab === "qrcode" && (
-        <div className="space-y-8">
+        <div className="space-y-6">
           <PlaceQRCodeCard
             initialName={currentBusiness.name}
             initialPlaceId={currentBusiness.placeId}
           />
-          <div className="border-t border-slate-200 dark:border-zinc-800 pt-8">
-            <h4 className="text-base font-bold text-slate-800 dark:text-zinc-200 mb-4">
-              Advanced Print Templates (Table Tents & Counter Stands)
-            </h4>
-            <QrCodeCard business={currentBusiness} />
-          </div>
         </div>
       )}
 
-      {/* ---------------------------------------------------- */}
-      {/* TAB 3: LIVE MOBILE SIMULATOR */}
-      {/* ---------------------------------------------------- */}
-      {activeTab === "simulator" && (
-        <div className="bg-slate-100 dark:bg-zinc-950 p-6 sm:p-10 rounded-3xl border border-slate-200 dark:border-zinc-800 flex flex-col items-center">
-          <div className="text-center max-w-md mb-6">
-            <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center justify-center gap-2">
-              <Smartphone className="w-5 h-5 text-indigo-600" />
-              Interactive Customer Smartphone Simulator
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
-              Experience exactly what your customers see when scanning your QR code. Test star ratings, AI text generation, and the Google Maps handoff.
-            </p>
-          </div>
-
-          {/* Smartphone Frame */}
-          <div className="w-full max-w-[400px] bg-slate-900 p-3.5 rounded-[44px] shadow-2xl border-4 border-slate-700">
-            {/* Phone Speaker & Dynamic Island */}
-            <div className="w-28 h-4 bg-black rounded-full mx-auto mb-3 flex items-center justify-center">
-              <div className="w-3 h-3 rounded-full bg-slate-800/80 mr-3" />
-              <div className="w-8 h-1 bg-slate-800 rounded-full" />
-            </div>
-
-            {/* Screen Content */}
-            <div className="bg-white dark:bg-zinc-900 rounded-[32px] overflow-hidden max-h-[720px] overflow-y-auto no-scrollbar">
-              <ReviewFlow business={currentBusiness} previewMode={true} />
-            </div>
-
-            {/* Bottom Home Indicator Bar */}
-            <div className="w-32 h-1 bg-slate-600 rounded-full mx-auto mt-3" />
-          </div>
-        </div>
-      )}
-
-      {/* ---------------------------------------------------- */}
-      {/* TAB 4: PRIVATE GRIEVANCE INBOX */}
-      {/* ---------------------------------------------------- */}
+      {/* TAB 3: FEEDBACK INBOX */}
       {activeTab === "feedback" && (
-        <div className="bg-white dark:bg-zinc-900 rounded-3xl p-6 border border-slate-100 dark:border-zinc-800 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <MessageSquareX className="w-5 h-5 text-rose-500" />
-                Customer Grievances & Private Feedback
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                These submissions were captured from 1-3 star ratings before they reached Google Maps.
-              </p>
-            </div>
-            <div className="text-xs font-semibold text-slate-500 bg-slate-100 dark:bg-zinc-800 px-3 py-1.5 rounded-xl">
-              Total Deflected: {feedbacks.length}
-            </div>
+        <div className="bg-white dark:bg-zinc-900 rounded-xl p-5 border border-slate-200 dark:border-zinc-800 space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+              Private Customer Grievances
+            </h3>
+            <span className="text-xs text-slate-400">
+              Total Submissions: {feedbacks.length}
+            </span>
           </div>
 
           {feedbacks.length === 0 ? (
-            <div className="text-center py-12 text-slate-400 text-sm">
-              No negative customer grievances reported yet! Great job maintaining high satisfaction.
+            <div className="text-center py-12 text-slate-400 text-xs">
+              No private feedback submissions recorded.
             </div>
           ) : (
-            <div className="space-y-3 pt-2">
+            <div className="space-y-3">
               {feedbacks.map((item) => (
                 <div
                   key={item.id}
-                  className="p-4 rounded-2xl border border-slate-100 dark:border-zinc-800 bg-slate-50/70 dark:bg-zinc-800/50 space-y-2.5 transition-all"
+                  className="p-4 rounded-lg border border-slate-200 dark:border-zinc-800 bg-slate-50 dark:bg-zinc-800/50 space-y-2 text-xs"
                 >
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="flex items-center gap-1 font-bold text-xs bg-rose-100 dark:bg-rose-950 text-rose-700 dark:text-rose-300 px-2.5 py-1 rounded-md">
-                        {item.rating} <Star className="w-3 h-3 fill-rose-500 text-rose-500" />
-                      </span>
-                      <span className="text-sm font-bold text-slate-900 dark:text-white">
+                      <span className="font-semibold text-slate-900 dark:text-white">
                         {item.customerName || "Anonymous Customer"}
                       </span>
-                      <span className="text-xs text-slate-400 flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {new Date(item.createdAt).toLocaleDateString()}
+                      <span className="text-slate-400">
+                        {item.rating} Stars • {new Date(item.createdAt).toLocaleDateString()}
                       </span>
                     </div>
 
-                    {/* Status Pill Switcher */}
                     <div className="flex items-center gap-1">
                       {(["new", "contacted", "resolved"] as const).map((st) => (
                         <button
                           key={st}
                           type="button"
                           onClick={() => handleUpdateStatus(item.id, st)}
-                          className={`text-[11px] px-2.5 py-1 rounded-lg font-medium transition-all ${
+                          className={`text-[10px] px-2 py-0.5 rounded capitalize ${
                             item.status === st
-                              ? st === "resolved"
-                                ? "bg-emerald-600 text-white font-semibold"
-                                : st === "contacted"
-                                ? "bg-amber-500 text-white font-semibold"
-                                : "bg-rose-600 text-white font-semibold"
-                              : "bg-white dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 hover:bg-slate-100"
+                              ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900 font-medium"
+                              : "bg-white dark:bg-zinc-700 text-slate-600 dark:text-zinc-300 border border-slate-200 dark:border-zinc-600"
                           }`}
                         >
-                          {st.charAt(0).toUpperCase() + st.slice(1)}
+                          {st}
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Grievance Issues Tags */}
-                  {item.issues && item.issues.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {item.issues.map((iss) => (
-                        <span
-                          key={iss}
-                          className="text-[11px] bg-white dark:bg-zinc-700 text-slate-700 dark:text-zinc-300 px-2 py-0.5 rounded-md border border-slate-200 dark:border-zinc-600"
-                        >
-                          {iss}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Grievance Comment */}
-                  <p className="text-xs sm:text-sm text-slate-700 dark:text-zinc-300 leading-relaxed bg-white dark:bg-zinc-900 p-3 rounded-xl border border-slate-200/60 dark:border-zinc-700">
+                  <p className="text-slate-700 dark:text-zinc-300 bg-white dark:bg-zinc-900 p-2.5 rounded border border-slate-200 dark:border-zinc-700">
                     "{item.comment}"
                   </p>
 
-                  {/* Contact info for resolution */}
                   {item.customerContact && (
-                    <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-zinc-400 pt-1">
-                      <span className="font-semibold text-slate-700 dark:text-zinc-300 flex items-center gap-1">
-                        Contact:
+                    <div className="flex items-center gap-2 text-slate-500">
+                      <span>Contact:</span>
+                      <span className="font-mono text-slate-800 dark:text-zinc-200">
+                        {item.customerContact}
                       </span>
-                      {item.customerContact.includes("@") ? (
-                        <a
-                          href={`mailto:${item.customerContact}`}
-                          className="flex items-center gap-1 text-indigo-600 hover:underline"
-                        >
-                          <Mail className="w-3.5 h-3.5" />
-                          {item.customerContact}
-                        </a>
-                      ) : (
-                        <a
-                          href={`tel:${item.customerContact}`}
-                          className="flex items-center gap-1 text-indigo-600 hover:underline"
-                        >
-                          <Phone className="w-3.5 h-3.5" />
-                          {item.customerContact}
-                        </a>
-                      )}
                     </div>
                   )}
                 </div>
@@ -631,147 +569,69 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* ---------------------------------------------------- */}
-      {/* TAB 5: GOOGLE PLACE SETTINGS & PROFILE */}
-      {/* ---------------------------------------------------- */}
+      {/* TAB 4: PLACE SETTINGS */}
       {activeTab === "profile" && editingBusiness && (
-        <form onSubmit={handleSaveProfile} className="bg-white dark:bg-zinc-900 rounded-3xl p-6 border border-slate-100 dark:border-zinc-800 shadow-xs space-y-6">
+        <form
+          onSubmit={handleSaveProfile}
+          className="bg-white dark:bg-zinc-900 rounded-xl p-5 border border-slate-200 dark:border-zinc-800 space-y-4 text-xs"
+        >
           <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Store className="w-5 h-5 text-indigo-600" />
-                Google Business Profile Settings
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-0.5">
-                Configure your official Google Place ID and brand assets.
-              </p>
-            </div>
-
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+              Location Settings
+            </h3>
             {saveSuccessMessage && (
-              <span className="text-xs text-emerald-600 font-semibold bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 animate-in fade-in">
-                {saveSuccessMessage}
-              </span>
+              <span className="text-emerald-600 font-medium">{saveSuccessMessage}</span>
             )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
+              <label className="block text-slate-700 dark:text-zinc-300 font-medium mb-1">
                 Business Name
               </label>
               <input
                 type="text"
                 required
                 value={editingBusiness.name}
-                onChange={(e) => setEditingBusiness({ ...editingBusiness, name: e.target.value })}
-                className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100"
+                onChange={(e) =>
+                  setEditingBusiness({ ...editingBusiness, name: e.target.value })
+                }
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1 flex items-center justify-between">
-                <span>Google Place ID</span>
-                <a
-                  href="https://developers.google.com/maps/documentation/places/web-service/place-id"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[11px] text-indigo-600 hover:underline flex items-center gap-1"
-                >
-                  <span>Find Place ID</span>
-                  <ExternalLink className="w-3 h-3" />
-                </a>
+              <label className="block text-slate-700 dark:text-zinc-300 font-medium mb-1">
+                Google Place ID
               </label>
               <input
                 type="text"
                 required
                 value={editingBusiness.placeId}
-                onChange={(e) => setEditingBusiness({ ...editingBusiness, placeId: e.target.value })}
-                className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono text-slate-900 dark:text-zinc-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                Category
-              </label>
-              <select
-                value={editingBusiness.category}
                 onChange={(e) =>
-                  setEditingBusiness({
-                    ...editingBusiness,
-                    category: e.target.value as any,
-                    categoryLabel: e.target.options[e.target.selectedIndex].text,
-                  })
+                  setEditingBusiness({ ...editingBusiness, placeId: e.target.value })
                 }
-                className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100"
-              >
-                <option value="restaurant">Restaurant & Bistro</option>
-                <option value="cafe">Cafe & Bakery</option>
-                <option value="hotel">Hotel & Hospitality</option>
-                <option value="dentist">Dentist & Clinic</option>
-                <option value="healthcare">Healthcare & Doctor</option>
-                <option value="salon">Salon & Spa</option>
-                <option value="automotive">Auto Care & Repair</option>
-                <option value="retail">Retail Boutique</option>
-                <option value="gym">Gym & Fitness</option>
-                <option value="professional">Professional Services</option>
-                <option value="other">General Business</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                City / Location
-              </label>
-              <input
-                type="text"
-                value={editingBusiness.city}
-                onChange={(e) => setEditingBusiness({ ...editingBusiness, city: e.target.value })}
-                className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                Headline (For Review Prompt)
-              </label>
-              <input
-                type="text"
-                value={editingBusiness.headline || ""}
-                onChange={(e) => setEditingBusiness({ ...editingBusiness, headline: e.target.value })}
-                className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                Logo Image URL
-              </label>
-              <input
-                type="url"
-                value={editingBusiness.logoUrl || ""}
-                onChange={(e) => setEditingBusiness({ ...editingBusiness, logoUrl: e.target.value })}
-                className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono text-slate-900 dark:text-zinc-100"
               />
             </div>
           </div>
 
-          {/* Quick-Tags Manager */}
+          {/* Tags */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1.5">
-              Customer Highlight Tags (Used by AI Review Generator)
+            <label className="block text-slate-700 dark:text-zinc-300 font-medium mb-1">
+              Highlight Attribute Chips (Used for Review Generation)
             </label>
-            <div className="flex flex-wrap gap-2 mb-2">
+            <div className="flex flex-wrap gap-1.5 mb-2">
               {editingBusiness.customTags.map((tag) => (
                 <span
                   key={tag}
-                  className="bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 text-xs px-3 py-1.5 rounded-full border border-indigo-200 dark:border-indigo-800 flex items-center gap-1.5"
+                  className="bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 px-2 py-1 rounded flex items-center gap-1"
                 >
                   <span>{tag}</span>
                   <button
                     type="button"
                     onClick={() => handleRemoveTag(tag)}
-                    className="hover:text-rose-600 font-bold ml-1 text-sm"
+                    className="hover:text-rose-600 font-bold ml-1"
                   >
                     ×
                   </button>
@@ -782,73 +642,68 @@ export const AdminDashboard: React.FC = () => {
             <div className="flex items-center gap-2 max-w-sm">
               <input
                 type="text"
-                placeholder="Add custom tag (e.g. Roof Patio)..."
+                placeholder="New attribute tag..."
                 value={newTagInput}
                 onChange={(e) => setNewTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddTag();
-                  }
-                }}
-                className="text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 flex-1 text-slate-900 dark:text-zinc-100"
+                className="px-3 py-1.5 rounded border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 flex-1 text-slate-900 dark:text-zinc-100"
               />
               <button
                 type="button"
                 onClick={handleAddTag}
-                className="bg-slate-900 dark:bg-white dark:text-slate-900 text-white text-xs font-semibold px-3 py-2 rounded-xl cursor-pointer"
+                className="bg-slate-900 dark:bg-white dark:text-slate-900 text-white px-3 py-1.5 rounded font-medium cursor-pointer"
               >
-                Add Tag
+                Add
               </button>
             </div>
           </div>
 
-          {/* Save Button */}
-          <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-end gap-3">
+          <div className="pt-3 border-t border-slate-100 dark:border-zinc-800 flex items-center justify-between">
+            <button
+              type="button"
+              onClick={handleDeleteCurrent}
+              className="text-rose-600 hover:text-rose-700 flex items-center gap-1 cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              <span>Delete Location</span>
+            </button>
+
             <button
               type="submit"
-              className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2.5 px-6 rounded-xl text-xs sm:text-sm cursor-pointer shadow-md shadow-indigo-500/20 transition-all"
+              className="bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 text-white font-medium py-2 px-4 rounded-lg cursor-pointer"
             >
-              Save Profile Changes
+              Save Settings
             </button>
           </div>
         </form>
       )}
 
-      {/* ---------------------------------------------------- */}
-      {/* MODAL: ADD NEW BUSINESS LOCATION */}
-      {/* ---------------------------------------------------- */}
+      {/* Add Location Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-2xs flex items-center justify-center p-4">
           <form
             onSubmit={handleCreateNewBusiness}
-            className="bg-white dark:bg-zinc-900 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl border border-slate-100 dark:border-zinc-800"
+            className="bg-white dark:bg-zinc-900 rounded-xl max-w-md w-full p-5 space-y-4 border border-slate-200 dark:border-zinc-800 text-xs"
           >
-            <div>
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                Add New Business Location
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-zinc-400 mt-1">
-                Link any Google Maps business profile by providing its Place ID.
-              </p>
-            </div>
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+              Add Business Location
+            </h3>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
+              <label className="block text-slate-700 dark:text-zinc-300 font-medium mb-1">
                 Business Name
               </label>
               <input
                 type="text"
                 required
-                placeholder="e.g. Blue Harbor Seafood"
+                placeholder="e.g. Acme Coffee Roasters"
                 value={newBizName}
                 onChange={(e) => setNewBizName(e.target.value)}
-                className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
+              <label className="block text-slate-700 dark:text-zinc-300 font-medium mb-1">
                 Google Place ID
               </label>
               <input
@@ -857,45 +712,23 @@ export const AdminDashboard: React.FC = () => {
                 placeholder="e.g. ChIJN1t_tDeuEmsRUsoyG83frY4"
                 value={newBizPlaceId}
                 onChange={(e) => setNewBizPlaceId(e.target.value)}
-                className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono text-slate-900 dark:text-zinc-100"
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 font-mono text-slate-900 dark:text-zinc-100"
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-zinc-300 mb-1">
-                Category
-              </label>
-              <select
-                value={newBizCategory}
-                onChange={(e) => setNewBizCategory(e.target.value)}
-                className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-slate-900 dark:text-zinc-100"
-              >
-                <option value="restaurant">Restaurant & Dining</option>
-                <option value="cafe">Cafe & Bakery</option>
-                <option value="hotel">Hotel & Hospitality</option>
-                <option value="dentist">Dentist & Clinic</option>
-                <option value="salon">Salon & Spa</option>
-                <option value="automotive">Automotive & Repair</option>
-                <option value="retail">Retail Boutique</option>
-                <option value="gym">Gym & Fitness</option>
-                <option value="professional">Professional Services</option>
-                <option value="other">General Business</option>
-              </select>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-zinc-800">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-zinc-800">
               <button
                 type="button"
                 onClick={() => setShowAddModal(false)}
-                className="text-xs text-slate-500 hover:text-slate-700 px-4 py-2"
+                className="text-slate-500 hover:text-slate-700 px-3 py-1.5"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs sm:text-sm px-5 py-2.5 rounded-xl cursor-pointer"
+                className="bg-slate-900 hover:bg-slate-800 dark:bg-white dark:text-slate-900 text-white font-medium px-4 py-1.5 rounded-lg"
               >
-                Create Location
+                Save Location
               </button>
             </div>
           </form>
