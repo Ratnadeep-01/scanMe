@@ -32,6 +32,7 @@ import {
   updateFeedbackStatus,
 } from "@/lib/business-store";
 import { QrCodeCard } from "./QrCodeCard";
+import { PlaceQRCodeCard } from "./PlaceQRCodeCard";
 import { ReviewFlow } from "./ReviewFlow";
 import { getGoogleReviewUrl, getGooglePlaceProfileUrl } from "@/lib/google-maps-utils";
 
@@ -463,8 +464,17 @@ export const AdminDashboard: React.FC = () => {
       {/* TAB 2: PRINTABLE QR CODE STUDIO */}
       {/* ---------------------------------------------------- */}
       {activeTab === "qrcode" && (
-        <div className="space-y-6">
-          <QrCodeCard business={currentBusiness} />
+        <div className="space-y-8">
+          <PlaceQRCodeCard
+            initialName={currentBusiness.name}
+            initialPlaceId={currentBusiness.placeId}
+          />
+          <div className="border-t border-slate-200 dark:border-zinc-800 pt-8">
+            <h4 className="text-base font-bold text-slate-800 dark:text-zinc-200 mb-4">
+              Advanced Print Templates (Table Tents & Counter Stands)
+            </h4>
+            <QrCodeCard business={currentBusiness} />
+          </div>
         </div>
       )}
 
